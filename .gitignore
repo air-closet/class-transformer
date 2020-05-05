@@ -1,6 +1,7 @@
-build/
 node_modules/
 coverage/
 npm-debug.log
 .idea
 .vscode
+build/es5
+build/bundle
