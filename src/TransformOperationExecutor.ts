@@ -120,146 +120,287 @@ export class TransformOperationExecutor {
                 if (isMap) {
                     newValue = new Map();
                 } else if (targetType) {
-                    newValue = new (targetType as any)();
+                    if (value instanceof (targetType as Function)) {
+                        newValue = value;
+                    } else {
+                        newValue = new (targetType as any)(value);
+                    }
                 } else {
                     newValue = {};
                 }
             }
 
             // traverse over keys
-            for (let key of keys) {
+            if (!(value instanceof (targetType as Function))) {
+                for (let key of keys) {
+                    let valueKey = key, newValueKey = key, propertyName = key;
+                    if (!this.options.ignoreDecorators && targetType) {
+                        if (this.transformationType === TransformationType.PLAIN_TO_CLASS) {
+                            const exposeMetadata = defaultMetadataStorage.findExposeMetadataByCustomName((targetType as Function), key);
+                            if (exposeMetadata) {
+                                propertyName = exposeMetadata.propertyName;
+                                newValueKey = exposeMetadata.propertyName;
+                            }
 
-                let valueKey = key, newValueKey = key, propertyName = key;
-                if (!this.options.ignoreDecorators && targetType) {
-                    if (this.transformationType === TransformationType.PLAIN_TO_CLASS) {
-                        const exposeMetadata = defaultMetadataStorage.findExposeMetadataByCustomName((targetType as Function), key);
-                        if (exposeMetadata) {
-                            propertyName = exposeMetadata.propertyName;
-                            newValueKey = exposeMetadata.propertyName;
-                        }
-
-                    } else if (this.transformationType === TransformationType.CLASS_TO_PLAIN || this.transformationType === TransformationType.CLASS_TO_CLASS) {
-                        const exposeMetadata = defaultMetadataStorage.findExposeMetadata((targetType as Function), key);
-                        if (exposeMetadata && exposeMetadata.options && exposeMetadata.options.name) {
-                            newValueKey = exposeMetadata.options.name;
+                        } else if (this.transformationType === TransformationType.CLASS_TO_PLAIN || this.transformationType === TransformationType.CLASS_TO_CLASS) {
+                            const exposeMetadata = defaultMetadataStorage.findExposeMetadata((targetType as Function), key);
+                            if (exposeMetadata && exposeMetadata.options && exposeMetadata.options.name) {
+                                newValueKey = exposeMetadata.options.name;
+                            }
                         }
                     }
-                }
 
-                // get a subvalue
-                let subValue: any = undefined;
-                if (value instanceof Map) {
-                    subValue = value.get(valueKey);
-                } else if (value[valueKey] instanceof Function) {
-                    subValue = value[valueKey]();
-                } else {
-                    subValue = value[valueKey];
-                }
+                    // get a subvalue
+                    let subValue: any = undefined;
+                    if (value instanceof Map) {
+                        subValue = value.get(valueKey);
+                    } else if (value[valueKey] instanceof Function) {
+                        subValue = value[valueKey]();
+                    } else {
+                        subValue = value[valueKey];
+                    }
 
-                // determine a type
-                let type: any = undefined, isSubValueMap = subValue instanceof Map;
-                if (targetType && isMap) {
-                    type = targetType;
+                    // determine a type
+                    let type: any = undefined, isSubValueMap = subValue instanceof Map;
+                    if (targetType && isMap) {
+                        type = targetType;
 
-                } else if (targetType) {
+                    } else if (targetType) {
 
-                    const metadata = defaultMetadataStorage.findTypeMetadata((targetType as Function), propertyName);
-                    if (metadata) {
-                        const options: TypeHelpOptions = { newObject: newValue, object: value, property: propertyName };
-                        const newType = metadata.typeFunction ? metadata.typeFunction(options) : metadata.reflectedType;
-                        if (metadata.options && metadata.options.discriminator && metadata.options.discriminator.property && metadata.options.discriminator.subTypes) {
-                            if (!(value[valueKey] instanceof Array)) {
-                                if (this.transformationType === TransformationType.PLAIN_TO_CLASS) {
-                                    type = metadata.options.discriminator.subTypes.find((subType) => {
-                                        if (subValue && metadata.options.discriminator.property in subValue) {
-                                            return subType.name === subValue[metadata.options.discriminator.property]
-                                        }
-                                    });
-                                    type === undefined ? type = newType : type = type.value;
-                                    if (!metadata.options.keepDiscriminatorProperty) {
-                                        if (subValue && metadata.options.discriminator.property in subValue) {
-                                            delete subValue[metadata.options.discriminator.property];
+                        const metadata = defaultMetadataStorage.findTypeMetadata((targetType as Function), propertyName);
+                        if (metadata) {
+                            const options: TypeHelpOptions = { newObject: newValue, object: value, property: propertyName };
+                            const newType = metadata.typeFunction ? metadata.typeFunction(options) : metadata.reflectedType;
+                            if (metadata.options && metadata.options.discriminator && metadata.options.discriminator.property && metadata.options.discriminator.subTypes) {
+                                if (!(value[valueKey] instanceof Array)) {
+                                    if (this.transformationType === TransformationType.PLAIN_TO_CLASS) {
+                                        type = metadata.options.discriminator.subTypes.find((subType) => {
+                                            if (subValue && metadata.options.discriminator.property in subValue) {
+                                                return subType.name === subValue[metadata.options.discriminator.property];
+                                            }
+                                        });
+                                        type === undefined ? type = newType : type = type.value;
+                                        if (!metadata.options.keepDiscriminatorProperty) {
+                                            if (subValue && metadata.options.discriminator.property in subValue) {
+                                                delete subValue[metadata.options.discriminator.property];
+                                            }
                                         }
                                     }
-                                }
-                                if (this.transformationType === TransformationType.CLASS_TO_CLASS) {
-                                    type = subValue.constructor;
-                                }
-                                if (this.transformationType === TransformationType.CLASS_TO_PLAIN) {
-                                    subValue[metadata.options.discriminator.property] = metadata.options.discriminator.subTypes.find((subType) => subType.value === subValue.constructor).name;
+                                    if (this.transformationType === TransformationType.CLASS_TO_CLASS) {
+                                        type = subValue.constructor;
+                                    }
+                                    if (this.transformationType === TransformationType.CLASS_TO_PLAIN) {
+                                        subValue[metadata.options.discriminator.property] = metadata.options.discriminator.subTypes.find((subType) => subType.value === subValue.constructor).name;
+                                    }
+                                } else {
+                                    type = metadata;
                                 }
                             } else {
-                                type = metadata;
+                                type = newType;
                             }
+                            isSubValueMap = isSubValueMap || metadata.reflectedType === Map;
+                        } else if (this.options.targetMaps) { // try to find a type in target maps
+                            this.options.targetMaps
+                                .filter(map => map.target === targetType && !!map.properties[propertyName])
+                                .forEach(map => type = map.properties[propertyName]);
+                        } else if (this.options.enableImplicitConversion && this.transformationType === TransformationType.PLAIN_TO_CLASS) {
+                            // if we have no registererd type via the @Type() decorator then we check if we have any
+                            // type declarations in reflect-metadata (type declaration is emited only if some decorator is added to the property.)
+                            const reflectedType = Reflect.getMetadata("design:type", (targetType as Function).prototype, propertyName);
+
+                            if (reflectedType) {
+                                type = reflectedType;
+                            }
+                        }
+                    }
+
+                    // if value is an array try to get its custom array type
+                    const arrayType = Array.isArray(value[valueKey]) ? this.getReflectedType((targetType as Function), propertyName) : undefined;
+
+                    // const subValueKey = TransformationType === TransformationType.PLAIN_TO_CLASS && newKeyName ? newKeyName : key;
+                    const subSource = source ? source[valueKey] : undefined;
+
+                    // if its deserialization then type if required
+                    // if we uncomment this types like string[] will not work
+                    // if (this.transformationType === TransformationType.PLAIN_TO_CLASS && !type && subValue instanceof Object && !(subValue instanceof Date))
+                    //     throw new Error(`Cannot determine type for ${(targetType as any).name }.${propertyName}, did you forget to specify a @Type?`);
+
+                    // if newValue is a source object that has method that match newKeyName then skip it
+                    if (newValue.constructor.prototype) {
+                        const descriptor = Object.getOwnPropertyDescriptor(newValue.constructor.prototype, newValueKey);
+                        if ((this.transformationType === TransformationType.PLAIN_TO_CLASS || this.transformationType === TransformationType.CLASS_TO_CLASS)
+                            && ((descriptor && !descriptor.set) || newValue[newValueKey] instanceof Function)) //  || TransformationType === TransformationType.CLASS_TO_CLASS
+                            continue;
+                    }
+
+                    if (!this.options.enableCircularCheck || !this.isCircular(subValue)) {
+                        let transformKey = this.transformationType === TransformationType.PLAIN_TO_CLASS ? newValueKey : key;
+                        let finalValue;
+
+                        if (this.transformationType === TransformationType.CLASS_TO_PLAIN) {
+                            // Get original value
+                            finalValue = value[transformKey];
+                            // Apply custom transformation
+                            finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
+                            // If nothing change, it means no custom transformation was applied, so use the subValue.
+                            finalValue = (value[transformKey] === finalValue) ? subValue : finalValue;
+                            // Apply the default transformation
+                            finalValue = this.transform(subSource, finalValue, type, arrayType, isSubValueMap, level + 1);
                         } else {
-                            type = newType;
+                            finalValue = this.transform(subSource, subValue, type, arrayType, isSubValueMap, level + 1);
+                            finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
                         }
-                        isSubValueMap = isSubValueMap || metadata.reflectedType === Map;
-                    } else if (this.options.targetMaps) { // try to find a type in target maps
-                        this.options.targetMaps
-                            .filter(map => map.target === targetType && !!map.properties[propertyName])
-                            .forEach(map => type = map.properties[propertyName]);
-                    } else if(this.options.enableImplicitConversion && this.transformationType === TransformationType.PLAIN_TO_CLASS) {
-                        // if we have no registererd type via the @Type() decorator then we check if we have any
-                        // type declarations in reflect-metadata (type declaration is emited only if some decorator is added to the property.)
-                        const reflectedType = Reflect.getMetadata("design:type", (targetType as Function).prototype, propertyName);
 
-                        if (reflectedType) {
-                            type = reflectedType;
+                        if (newValue instanceof Map) {
+                            newValue.set(newValueKey, finalValue);
+                        } else {
+                            newValue[newValueKey] = finalValue;
+                        }
+                    } else if (this.transformationType === TransformationType.CLASS_TO_CLASS) {
+                        let finalValue = subValue;
+                        finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), key, value, this.transformationType);
+                        if (newValue instanceof Map) {
+                            newValue.set(newValueKey, finalValue);
+                        } else {
+                            newValue[newValueKey] = finalValue;
                         }
                     }
+
                 }
+                for (let key of keys) {
+                    let valueKey = key, newValueKey = key, propertyName = key;
+                    if (!this.options.ignoreDecorators && targetType) {
+                        if (this.transformationType === TransformationType.PLAIN_TO_CLASS) {
+                            const exposeMetadata = defaultMetadataStorage.findExposeMetadataByCustomName((targetType as Function), key);
+                            if (exposeMetadata) {
+                                propertyName = exposeMetadata.propertyName;
+                                newValueKey = exposeMetadata.propertyName;
+                            }
 
-                // if value is an array try to get its custom array type
-                const arrayType = Array.isArray(value[valueKey]) ? this.getReflectedType((targetType as Function), propertyName) : undefined;
-
-                // const subValueKey = TransformationType === TransformationType.PLAIN_TO_CLASS && newKeyName ? newKeyName : key;
-                const subSource = source ? source[valueKey] : undefined;
-
-                // if its deserialization then type if required
-                // if we uncomment this types like string[] will not work
-                // if (this.transformationType === TransformationType.PLAIN_TO_CLASS && !type && subValue instanceof Object && !(subValue instanceof Date))
-                //     throw new Error(`Cannot determine type for ${(targetType as any).name }.${propertyName}, did you forget to specify a @Type?`);
-
-                // if newValue is a source object that has method that match newKeyName then skip it
-                if (newValue.constructor.prototype) {
-                    const descriptor = Object.getOwnPropertyDescriptor(newValue.constructor.prototype, newValueKey);
-                    if ((this.transformationType === TransformationType.PLAIN_TO_CLASS || this.transformationType === TransformationType.CLASS_TO_CLASS)
-                        && ((descriptor && !descriptor.set) || newValue[newValueKey] instanceof Function)) //  || TransformationType === TransformationType.CLASS_TO_CLASS
-                        continue;
-                }
-
-                if (!this.options.enableCircularCheck || !this.isCircular(subValue)) {
-                    let transformKey = this.transformationType === TransformationType.PLAIN_TO_CLASS ? newValueKey : key;
-                    let finalValue;
-
-                    if (this.transformationType === TransformationType.CLASS_TO_PLAIN) {
-                        // Get original value
-                        finalValue = value[transformKey];
-                        // Apply custom transformation
-                        finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
-                        // If nothing change, it means no custom transformation was applied, so use the subValue.
-                        finalValue = (value[transformKey] === finalValue) ? subValue : finalValue;
-                        // Apply the default transformation
-                        finalValue = this.transform(subSource, finalValue, type, arrayType, isSubValueMap, level + 1);
-                    } else {
-                        finalValue = this.transform(subSource, subValue, type, arrayType, isSubValueMap, level + 1);
-                        finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
+                        } else if (this.transformationType === TransformationType.CLASS_TO_PLAIN || this.transformationType === TransformationType.CLASS_TO_CLASS) {
+                            const exposeMetadata = defaultMetadataStorage.findExposeMetadata((targetType as Function), key);
+                            if (exposeMetadata && exposeMetadata.options && exposeMetadata.options.name) {
+                                newValueKey = exposeMetadata.options.name;
+                            }
+                        }
                     }
 
-                    if (newValue instanceof Map) {
-                        newValue.set(newValueKey, finalValue);
+                    // get a subvalue
+                    let subValue: any = undefined;
+                    if (value instanceof Map) {
+                        subValue = value.get(valueKey);
+                    } else if (value[valueKey] instanceof Function) {
+                        subValue = value[valueKey]();
                     } else {
-                        newValue[newValueKey] = finalValue;
+                        subValue = value[valueKey];
                     }
-                } else if (this.transformationType === TransformationType.CLASS_TO_CLASS) {
-                    let finalValue = subValue;
-                    finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), key, value, this.transformationType);
-                    if (newValue instanceof Map) {
-                        newValue.set(newValueKey, finalValue);
-                    } else {
-                        newValue[newValueKey] = finalValue;
+
+                    // determine a type
+                    let type: any = undefined, isSubValueMap = subValue instanceof Map;
+                    if (targetType && isMap) {
+                        type = targetType;
+
+                    } else if (targetType) {
+
+                        const metadata = defaultMetadataStorage.findTypeMetadata((targetType as Function), propertyName);
+                        if (metadata) {
+                            const options: TypeHelpOptions = { newObject: newValue, object: value, property: propertyName };
+                            const newType = metadata.typeFunction ? metadata.typeFunction(options) : metadata.reflectedType;
+                            if (metadata.options && metadata.options.discriminator && metadata.options.discriminator.property && metadata.options.discriminator.subTypes) {
+                                if (!(value[valueKey] instanceof Array)) {
+                                    if (this.transformationType === TransformationType.PLAIN_TO_CLASS) {
+                                        type = metadata.options.discriminator.subTypes.find((subType) => {
+                                            if (subValue && metadata.options.discriminator.property in subValue) {
+                                                return subType.name === subValue[metadata.options.discriminator.property];
+                                            }
+                                        });
+                                        type === undefined ? type = newType : type = type.value;
+                                        if (!metadata.options.keepDiscriminatorProperty) {
+                                            if (subValue && metadata.options.discriminator.property in subValue) {
+                                                delete subValue[metadata.options.discriminator.property];
+                                            }
+                                        }
+                                    }
+                                    if (this.transformationType === TransformationType.CLASS_TO_CLASS) {
+                                        type = subValue.constructor;
+                                    }
+                                    if (this.transformationType === TransformationType.CLASS_TO_PLAIN) {
+                                        subValue[metadata.options.discriminator.property] = metadata.options.discriminator.subTypes.find((subType) => subType.value === subValue.constructor).name;
+                                    }
+                                } else {
+                                    type = metadata;
+                                }
+                            } else {
+                                type = newType;
+                            }
+                            isSubValueMap = isSubValueMap || metadata.reflectedType === Map;
+                        } else if (this.options.targetMaps) { // try to find a type in target maps
+                            this.options.targetMaps
+                                .filter(map => map.target === targetType && !!map.properties[propertyName])
+                                .forEach(map => type = map.properties[propertyName]);
+                        } else if (this.options.enableImplicitConversion && this.transformationType === TransformationType.PLAIN_TO_CLASS) {
+                            // if we have no registererd type via the @Type() decorator then we check if we have any
+                            // type declarations in reflect-metadata (type declaration is emited only if some decorator is added to the property.)
+                            const reflectedType = Reflect.getMetadata("design:type", (targetType as Function).prototype, propertyName);
+
+                            if (reflectedType) {
+                                type = reflectedType;
+                            }
+                        }
                     }
+
+                    // if value is an array try to get its custom array type
+                    const arrayType = Array.isArray(value[valueKey]) ? this.getReflectedType((targetType as Function), propertyName) : undefined;
+
+                    // const subValueKey = TransformationType === TransformationType.PLAIN_TO_CLASS && newKeyName ? newKeyName : key;
+                    const subSource = source ? source[valueKey] : undefined;
+
+                    // if its deserialization then type if required
+                    // if we uncomment this types like string[] will not work
+                    // if (this.transformationType === TransformationType.PLAIN_TO_CLASS && !type && subValue instanceof Object && !(subValue instanceof Date))
+                    //     throw new Error(`Cannot determine type for ${(targetType as any).name }.${propertyName}, did you forget to specify a @Type?`);
+
+                    // if newValue is a source object that has method that match newKeyName then skip it
+                    if (newValue.constructor.prototype) {
+                        const descriptor = Object.getOwnPropertyDescriptor(newValue.constructor.prototype, newValueKey);
+                        if ((this.transformationType === TransformationType.PLAIN_TO_CLASS || this.transformationType === TransformationType.CLASS_TO_CLASS)
+                            && ((descriptor && !descriptor.set) || newValue[newValueKey] instanceof Function)) //  || TransformationType === TransformationType.CLASS_TO_CLASS
+                            continue;
+                    }
+
+                    if (!this.options.enableCircularCheck || !this.isCircular(subValue)) {
+                        let transformKey = this.transformationType === TransformationType.PLAIN_TO_CLASS ? newValueKey : key;
+                        let finalValue;
+
+                        if (this.transformationType === TransformationType.CLASS_TO_PLAIN) {
+                            // Get original value
+                            finalValue = value[transformKey];
+                            // Apply custom transformation
+                            finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
+                            // If nothing change, it means no custom transformation was applied, so use the subValue.
+                            finalValue = (value[transformKey] === finalValue) ? subValue : finalValue;
+                            // Apply the default transformation
+                            finalValue = this.transform(subSource, finalValue, type, arrayType, isSubValueMap, level + 1);
+                        } else {
+                            finalValue = this.transform(subSource, subValue, type, arrayType, isSubValueMap, level + 1);
+                            finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
+                        }
+
+                        if (newValue instanceof Map) {
+                            newValue.set(newValueKey, finalValue);
+                        } else {
+                            newValue[newValueKey] = finalValue;
+                        }
+                    } else if (this.transformationType === TransformationType.CLASS_TO_CLASS) {
+                        let finalValue = subValue;
+                        finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), key, value, this.transformationType);
+                        if (newValue instanceof Map) {
+                            newValue.set(newValueKey, finalValue);
+                        } else {
+                            newValue[newValueKey] = finalValue;
+                        }
+                    }
+
                 }
 
             }
@@ -270,7 +411,11 @@ export class TransformOperationExecutor {
 
             return newValue;
 
-        } else {
+        }
+        else if (typeof value === "string" && typeof targetType === "function") {
+            return new (targetType as any)(value);
+        }
+        else {
             return value;
         }
     }
