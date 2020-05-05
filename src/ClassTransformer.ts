@@ -18,7 +18,7 @@ export class ClassTransformer {
     classToPlain<T extends Object>(object: T[], options?: ClassTransformOptions): Object[];
     classToPlain<T extends Object>(object: T|T[], options?: ClassTransformOptions): Object|Object[] {
         const executor = new TransformOperationExecutor(TransformationType.CLASS_TO_PLAIN, options || {});
-        return executor.transform(undefined, object, undefined, undefined, undefined, undefined);
+        return executor.transform(undefined, object, undefined, undefined, undefined, undefined, "isPlain");
     }
 
     /**

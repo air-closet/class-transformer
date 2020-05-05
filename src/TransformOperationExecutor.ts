@@ -34,7 +34,8 @@ export class TransformOperationExecutor {
         targetType: Function | TypeMetadata,
         arrayType: Function,
         isMap: boolean,
-        level: number = 0) {
+        level: number = 0,
+        isPlain: string = "") {
 
         if (Array.isArray(value) || value instanceof Set) {
             const newValue = arrayType && this.transformationType === TransformationType.PLAIN_TO_CLASS ? instantiateArrayType(arrayType) : [];
@@ -59,7 +60,7 @@ export class TransformOperationExecutor {
                     } else {
                         realTargetType = targetType;
                     }
-                    const value = this.transform(subSource, subValue, realTargetType, undefined, subValue instanceof Map, level + 1);
+                    const value = this.transform(subSource, subValue, realTargetType, undefined, subValue instanceof Map, level + 1, isPlain);
 
                     if (newValue instanceof Set) {
                         newValue.add(value);
@@ -103,7 +104,7 @@ export class TransformOperationExecutor {
                 return value;
             return Buffer.from(value);
 
-        } else if (typeof value === "object" && value !== null) {
+        } else if (typeof value === "object" && value !== null && !(value instanceof String)) {
 
             // try to guess the type
             if (!targetType && value.constructor !== Object/* && TransformationType === TransformationType.CLASS_TO_PLAIN*/) targetType = value.constructor;
@@ -131,7 +132,7 @@ export class TransformOperationExecutor {
             }
 
             // traverse over keys
-            if (!(value instanceof (targetType as Function))) {
+            if (!(value instanceof (targetType as Function)) || isPlain) {
                 for (let key of keys) {
                     let valueKey = key, newValueKey = key, propertyName = key;
                     if (!this.options.ignoreDecorators && targetType) {
@@ -245,9 +246,9 @@ export class TransformOperationExecutor {
                             // If nothing change, it means no custom transformation was applied, so use the subValue.
                             finalValue = (value[transformKey] === finalValue) ? subValue : finalValue;
                             // Apply the default transformation
-                            finalValue = this.transform(subSource, finalValue, type, arrayType, isSubValueMap, level + 1);
+                            finalValue = this.transform(subSource, finalValue, type, arrayType, isSubValueMap, level + 1, isPlain);
                         } else {
-                            finalValue = this.transform(subSource, subValue, type, arrayType, isSubValueMap, level + 1);
+                            finalValue = this.transform(subSource, subValue, type, arrayType, isSubValueMap, level + 1, isPlain);
                             finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
                         }
 
@@ -380,9 +381,9 @@ export class TransformOperationExecutor {
                             // If nothing change, it means no custom transformation was applied, so use the subValue.
                             finalValue = (value[transformKey] === finalValue) ? subValue : finalValue;
                             // Apply the default transformation
-                            finalValue = this.transform(subSource, finalValue, type, arrayType, isSubValueMap, level + 1);
+                            finalValue = this.transform(subSource, finalValue, type, arrayType, isSubValueMap, level + 1, isPlain);
                         } else {
-                            finalValue = this.transform(subSource, subValue, type, arrayType, isSubValueMap, level + 1);
+                            finalValue = this.transform(subSource, subValue, type, arrayType, isSubValueMap, level + 1, isPlain);
                             finalValue = this.applyCustomTransformations(finalValue, (targetType as Function), transformKey, value, this.transformationType);
                         }
 
@@ -414,6 +415,9 @@ export class TransformOperationExecutor {
         }
         else if (typeof value === "string" && typeof targetType === "function") {
             return new (targetType as any)(value);
+        }
+        else if (value instanceof String) {
+            return value.toString();
         }
         else {
             return value;
