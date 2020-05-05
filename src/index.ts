@@ -11,8 +11,8 @@ const classTransformer = new ClassTransformer();
 /**
  * Converts class (constructor) object to plain (literal) object. Also works with arrays.
  */
-export function classToPlain<T>(object: T, options?: ClassTransformOptions): Object;
-export function classToPlain<T>(object: T[], options?: ClassTransformOptions): Object[];
+export function classToPlain<T>(object: T, options?: ClassTransformOptions): T;
+export function classToPlain<T>(object: T[], options?: ClassTransformOptions): T[];
 export function classToPlain<T>(object: T|T[], options?: ClassTransformOptions): Object|Object[] {
     return classTransformer.classToPlain(object, options);
 }
