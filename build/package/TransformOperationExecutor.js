@@ -22,9 +22,10 @@ var TransformOperationExecutor = /** @class */ (function () {
     // -------------------------------------------------------------------------
     // Public Methods
     // -------------------------------------------------------------------------
-    TransformOperationExecutor.prototype.transform = function (source, value, targetType, arrayType, isMap, level) {
+    TransformOperationExecutor.prototype.transform = function (source, value, targetType, arrayType, isMap, level, isPlain) {
         var _this = this;
         if (level === void 0) { level = 0; }
+        if (isPlain === void 0) { isPlain = ""; }
         if (Array.isArray(value) || value instanceof Set) {
             var newValue_1 = arrayType && this.transformationType === TransformationType.PLAIN_TO_CLASS ? instantiateArrayType(arrayType) : [];
             value.forEach(function (subValue, index) {
@@ -50,7 +51,7 @@ var TransformOperationExecutor = /** @class */ (function () {
                     else {
                         realTargetType = targetType;
                     }
-                    var value_1 = _this.transform(subSource, subValue, realTargetType, undefined, subValue instanceof Map, level + 1);
+                    var value_1 = _this.transform(subSource, subValue, realTargetType, undefined, subValue instanceof Map, level + 1, isPlain);
                     if (newValue_1 instanceof Set) {
                         newValue_1.add(value_1);
                     }
@@ -97,7 +98,7 @@ var TransformOperationExecutor = /** @class */ (function () {
                 return value;
             return Buffer.from(value);
         }
-        else if (typeof value === "object" && value !== null) {
+        else if (typeof value === "object" && value !== null && !(value instanceof String)) {
             // try to guess the type
             if (!targetType && value.constructor !== Object /* && TransformationType === TransformationType.CLASS_TO_PLAIN*/)
                 targetType = value.constructor;
@@ -126,7 +127,7 @@ var TransformOperationExecutor = /** @class */ (function () {
                 }
             }
             // traverse over keys
-            if (!(value instanceof targetType)) {
+            if (!(value instanceof targetType) || isPlain) {
                 var _loop_1 = function (key) {
                     var valueKey = key, newValueKey = key, propertyName = key;
                     if (!this_1.options.ignoreDecorators && targetType) {
@@ -236,10 +237,10 @@ var TransformOperationExecutor = /** @class */ (function () {
                             // If nothing change, it means no custom transformation was applied, so use the subValue.
                             finalValue = (value[transformKey] === finalValue) ? subValue : finalValue;
                             // Apply the default transformation
-                            finalValue = this_1.transform(subSource, finalValue, type, arrayType_1, isSubValueMap, level + 1);
+                            finalValue = this_1.transform(subSource, finalValue, type, arrayType_1, isSubValueMap, level + 1, isPlain);
                         }
                         else {
-                            finalValue = this_1.transform(subSource, subValue, type, arrayType_1, isSubValueMap, level + 1);
+                            finalValue = this_1.transform(subSource, subValue, type, arrayType_1, isSubValueMap, level + 1, isPlain);
                             finalValue = this_1.applyCustomTransformations(finalValue, targetType, transformKey, value, this_1.transformationType);
                         }
                         if (newValue instanceof Map) {
@@ -374,10 +375,10 @@ var TransformOperationExecutor = /** @class */ (function () {
                             // If nothing change, it means no custom transformation was applied, so use the subValue.
                             finalValue = (value[transformKey] === finalValue) ? subValue : finalValue;
                             // Apply the default transformation
-                            finalValue = this_2.transform(subSource, finalValue, type, arrayType_2, isSubValueMap, level + 1);
+                            finalValue = this_2.transform(subSource, finalValue, type, arrayType_2, isSubValueMap, level + 1, isPlain);
                         }
                         else {
-                            finalValue = this_2.transform(subSource, subValue, type, arrayType_2, isSubValueMap, level + 1);
+                            finalValue = this_2.transform(subSource, subValue, type, arrayType_2, isSubValueMap, level + 1, isPlain);
                             finalValue = this_2.applyCustomTransformations(finalValue, targetType, transformKey, value, this_2.transformationType);
                         }
                         if (newValue instanceof Map) {
@@ -411,6 +412,9 @@ var TransformOperationExecutor = /** @class */ (function () {
         }
         else if (typeof value === "string" && typeof targetType === "function") {
             return new targetType(value);
+        }
+        else if (value instanceof String) {
+            return value.toString();
         }
         else {
             return value;

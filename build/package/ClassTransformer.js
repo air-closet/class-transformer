@@ -6,7 +6,7 @@ var ClassTransformer = /** @class */ (function () {
     }
     ClassTransformer.prototype.classToPlain = function (object, options) {
         var executor = new TransformOperationExecutor_1.TransformOperationExecutor(TransformOperationExecutor_1.TransformationType.CLASS_TO_PLAIN, options || {});
-        return executor.transform(undefined, object, undefined, undefined, undefined, undefined);
+        return executor.transform(undefined, object, undefined, undefined, undefined, undefined, "isPlain");
     };
     ClassTransformer.prototype.classToPlainFromExist = function (object, plainObject, options) {
         var executor = new TransformOperationExecutor_1.TransformOperationExecutor(TransformOperationExecutor_1.TransformationType.CLASS_TO_PLAIN, options || {});

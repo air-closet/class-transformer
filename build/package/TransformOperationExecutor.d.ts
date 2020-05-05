@@ -10,7 +10,7 @@ export declare class TransformOperationExecutor {
     private options;
     private recursionStack;
     constructor(transformationType: TransformationType, options: ClassTransformOptions);
-    transform(source: Object | Object[] | any, value: Object | Object[] | any, targetType: Function | TypeMetadata, arrayType: Function, isMap: boolean, level?: number): any;
+    transform(source: Object | Object[] | any, value: Object | Object[] | any, targetType: Function | TypeMetadata, arrayType: Function, isMap: boolean, level?: number, isPlain?: string): any;
     private applyCustomTransformations;
     private isCircular;
     private getReflectedType;
