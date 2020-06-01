@@ -7,8 +7,8 @@ export * from "./decorators";
 /**
  * Converts class (constructor) object to plain (literal) object. Also works with arrays.
  */
-export declare function classToPlain<T>(object: T, options?: ClassTransformOptions): T;
-export declare function classToPlain<T>(object: T[], options?: ClassTransformOptions): T[];
+export declare function classToPlain<T>(object: T, options?: ClassTransformOptions): Object;
+export declare function classToPlain<T>(object: T[], options?: ClassTransformOptions): Object[];
 /**
  * Converts class (constructor) object to plain (literal) object.
  * Uses given plain object as source object (it means fills given plain object with data from class object).
