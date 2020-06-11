@@ -369,7 +369,7 @@ define("class-transformer/TransformOperationExecutor", ["require", "exports", "c
                     return value;
                 return Buffer.from(value);
             }
-            else if (typeof value === "object" && value !== null && !(value instanceof String)) {
+            else if (typeof value === "object" && value !== null && !(value instanceof String || value instanceof Number)) {
                 // try to guess the type
                 if (!targetType && value.constructor !== Object /* && TransformationType === TransformationType.CLASS_TO_PLAIN*/)
                     targetType = value.constructor;
@@ -684,8 +684,14 @@ define("class-transformer/TransformOperationExecutor", ["require", "exports", "c
             else if (typeof value === "string" && typeof targetType === "function") {
                 return new targetType(value);
             }
+            else if (typeof value === "number" && typeof targetType === "function") {
+                return new targetType(value);
+            }
             else if (value instanceof String) {
                 return value.toString();
+            }
+            else if (value instanceof Number) {
+                return value.valueOf();
             }
             else {
                 return value;
